@@ -1,0 +1,26 @@
+{
+    "Simple Linear Regression": {
+        "R2": 0.5735661237735651,
+        "MSE": 1414898.0429930391
+    },
+    "Multiple Linear Regression": {
+        "R2": 0.5556027496651497,
+        "MSE": 1474500.115643695
+    },
+    "Polynomial Regression (Deg 2)": {
+        "R2": 0.5551114627390001,
+        "MSE": 1476130.1946526805
+    },
+    "Polynomial Regression (Deg 3)": {
+        "R2": 0.5634978939166074,
+        "MSE": 1448304.2039835164
+    },
+    "Polynomial Regression (Deg 4)": {
+        "R2": 0.5661534383559692,
+        "MSE": 1439493.1670565652
+    },
+    "Polynomial Regression (Deg 5)": {
+        "R2": 0.5646060320120374,
+        "MSE": 1444627.4266213037
+    }
+}

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Analytics Project</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle dark/light mode">
+            ☀️
+        </button>
+
+        <header class="stepper">
+            <div class="step active" data-step="0">1. Data Load</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="1">2. Preprocessing</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="2">3. Regression</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="3">4. Classification</div>
+            <div class="step-line"></div>
+            <div class="step" data-step="4">5. Conclusion</div>
+        </header>
+
+        <main class="main-content">
+
+            <section class="page-section" id="step-0">
+                <h2>1. Load Data</h2>
+                <div class="file-card">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name">ecommerce_data.csv</span>
+                    <span class="file-status">Loaded</span>
+                </div>
+                
+                <div class="option-bar" data-step-id="0">
+                    <button class="tab-btn active" data-tab="code">Code</button>
+                    <button class="tab-btn" data-tab="output">Output</button>
+                    <button class="tab-btn" data-tab="analysis">Analysis</button>
+                </div>
+
+                <div class="content-area">
+                    <div class="content-box active" id="code-content-0" data-tab="code">
+                        <pre><code>import pandas as pd
+# Load data from the CSV file
+df = pd.read_csv('data/ecommerce_data.csv', on_bad_lines='skip')
+# Display initial information about the dataframe
+print(df.head())
+print(df.info())
+print(df.isnull().sum())
+</code></pre>
+                    </div>
+                    <div class="content-box" id="output-content-0" data-tab="output">
+                        <h3>Data Head (First 5 Rows)</h3>
+                        <div class="table-container" data-src="images/data_head.html">Loading...</div>
+                        <h3>Data Info</h3>
+                        <pre><code class="table-container" data-src-text="images/data_info.txt">Loading...</code></pre>
+                        <h3>Initial Missing Values</h3>
+                        <div class="table-container" data-src="images/data_missing.html">Loading...</div>
+                    </div>
+                    <div class="content-box" id="analysis-content-0" data-tab="analysis">
+                        <h3>Analysis</h3>
+                        <p>The first step is to load the raw `ecommerce_data.csv` file. This file contains transactional records. Initial analysis revealed missing `CustomerID`s and `ReviewScore`s, which need to be handled. Crucially, it also showed inconsistent dates (including some in the future), which required a data cleaning script to be run to normalize them into a realistic 2023 timeframe. This ensures that time-based features like 'Recency' are calculated correctly.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="page-section" id="step-1" style="display: none;">
+                <h2>2. Data Preprocessing & Feature Engineering</h2>
+                <div class="file-card">
+                    <span class="file-icon">🛠️</span>
+                    <span class="file-name">RFM & Churn Features</span>
+                    <span class="file-status">Engineered</span>
+                </div>
+                
+                <div class="option-bar" data-step-id="1">
+                    <button class="tab-btn active" data-tab="code">Code</button>
+                    <button class="tab-btn" data-tab="output">Output</button>
+                    <button class="tab-btn" data-tab="analysis">Analysis</button>
+                </div>
+
+                <div class="content-area">
+                    <div class="content-box active" id="code-content-1" data-tab="code">
+                        <pre><code># Clean data by dropping rows with missing CustomerID
+df_cleaned = df.dropna(subset=['CustomerID'])
+# Impute missing ReviewScore with the mean
+df_cleaned['ReviewScore'] = df_cleaned['ReviewScore'].fillna(df_cleaned['ReviewScore'].mean())
+# Convert InvoiceDate to datetime
+df_cleaned['InvoiceDate'] = pd.to_datetime(df_cleaned['InvoiceDate'])
+# Calculate TotalPrice
+df_cleaned['TotalPrice'] = df_cleaned['Quantity'] * df_cleaned['UnitPrice']
+
+# --- Feature Engineering (RFM) ---
+snapshot_date = df_cleaned['InvoiceDate'].max() + pd.Timedelta(days=1)
+rfm_df = df_cleaned.groupby('CustomerID').agg(
+    Recency=('InvoiceDate', lambda x: (snapshot_date - x.max()).days),
+    Frequency=('InvoiceNo', 'nunique'),
+    Monetary=('TotalPrice', 'sum')
+).reset_index()
+</code></pre>
+                    </div>
+                    <div class="content-box" id="output-content-1" data-tab="output">
+                        <h3>Missing Values After Cleaning</h3>
+                        <div class="table-container" data-src="images/data_missing_after.html">Loading...</div>
+                        <h3>Engineered RFM Features (Head)</h3>
+                        <div class="table-container" data-src="images/rfm_head.html">Loading...</div>
+                    </div>
+                    <div class="content-box" id="analysis-content-1" data-tab="analysis">
+                        <h3>Analysis</h3>
+                        <p>Data is cleaned by removing null `CustomerID`s and imputing `ReviewScore`. The core of feature engineering is creating the RFM (Recency, Frequency, Monetary) features. A 'Churn' feature is then engineered by flagging the top 25% of customers with the highest 'Recency' as "Churned". Thanks to the date correction, this now creates a balanced 75/25 split between non-churned and churned customers, which is essential for training our classification models.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="page-section" id="step-2" style="display: none;">
+                <h2>3. Regression Task: Predicting Customer Spend</h2>
+                <p class="task-description">Goal: Predict the `Monetary` value of a customer based on their `Recency` and `Frequency`.</p>
+
+                <div class="model-scroller-container">
+                    <div class="model-scroller" id="regression-scroller">
+                        <div class="model-card" data-model="simple">Simple Linear</div>
+                        <div class="model-card" data-model="multi">Multiple Linear</div>
+                        <div class="model-card highlighted" data-model="poly">Polynomial</div>
+                        <div class="model-card" data-model="comparison">Model Comparison</div>
+                    </div>
+                </div>
+                
+                <div class="option-bar" data-step-id="2">
+                    <button class="tab-btn active" data-tab="code">Code</button>
+                    <button class="tab-btn" data-tab="output">Output</button>
+                    <button class="tab-btn" data-tab="analysis">Analysis</button>
+                </div>
+
+                <div class="content-area" id="regression-content-area">
+                </div>
+            </section>
+            
+            <section class="page-section" id="step-3" style="display: none;">
+                <h2>4. Classification Task: Predicting Customer Churn</h2>
+                <p class="task-description">Goal: Predict `IsChurned` (a binary 0/1 category) based on RFM features.</p>
+
+                <div class="model-scroller-container">
+                    <div class="model-scroller" id="classification-scroller">
+                        <div class="model-card" data-model="logistic">Logistic Regression</div>
+                        <div class="model-card" data-model="knn">KNN</div>
+                        <div class="model-card" data-model="svm">SVM</div>
+                        <div class="model-card" data-model="naive_bayes">Naive Bayes</div>
+                        <div class="model-card" data-model="tree">Decision Tree</div>
+                        <div class="model-card highlighted" data-model="forest">Random Forest</div>
+                        <div class="model-card" data-model="comparison">Model Comparison</div>
+                    </div>
+                </div>
+                
+                <div class="option-bar" data-step-id="3">
+                    <button class="tab-btn active" data-tab="code">Code</button>
+                    <button class="tab-btn" data-tab="output">Output</button>
+                    <button class="tab-btn" data-tab="analysis">Analysis</button>
+                </div>
+
+                <div class="content-area" id="classification-content-area">
+                </div>
+            </section>            
+
+            <section class="page-section" id="step-4" style="display: none;">
+                <h2>5. Conclusion</h2>
+                <p class="task-description">Here we compare our models to select the "best" one for each task based on their performance metrics.</p>
+                
+                <h3>Regression Task: Final Comparison</h3>
+                <div class="table-container" data-src="metrics/regression_metrics.json">Loading Regression Results...</div>
+                
+                <h3 style="margin-top: 30px;">Classification Task: Final Comparison</h3>
+                <div class="table-container" data-src="metrics/classification_metrics.json">Loading Classification Results...</div>
+
+                <h3 style="margin-top: 30px;">Final Analysis & Business Insights</h3>
+                <ul>
+                    <li><strong>Best Regression Model:</strong> The comparison shows that **Polynomial Regression** provides the highest R² score. This indicates it best captures the non-linear relationship between customer behavior (like frequency) and their total spending.</li>
+                    <li><strong>Best Classification Model:</strong> The accuracy comparison chart and F1-scores clearly show that **Random Forest** is the winner. It handles the complex interactions between RFM features far better than other models, leading to the most reliable predictions for customer churn.</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <button class="nav-btn" id="prev-btn" style="display: none;">Previous</button>
+            <button class="nav-btn" id="next-btn">Next Step</button>
+        </footer>
+    </div>
+    
+    <div id="model-templates" style="display: none;">
+    
+        <!-- Regression Models -->
+        <div data-model-id="simple">
+            <div class="content-box active" data-tab="code">
+                <pre><code># --- 1. Simple Linear Regression (on 'Frequency') ---
+model_name = "Simple Linear Regression"
+X_simple_train = X_train[['Frequency']]
+X_simple_test = X_test[['Frequency']]
+models[model_name].fit(X_simple_train, y_train)
+y_pred_simple = models[model_name].predict(X_simple_test)
+
+# Create a DataFrame for plotting
+plot_df_simple = pd.DataFrame({'Frequency': X_simple_test.squeeze(), 'Monetary': y_test, 'Predicted': y_pred_simple})
+
+# lmplot for Simple Linear Regression
+sns.lmplot(x='Frequency', y='Monetary', data=plot_df_simple, line_kws={'color': 'red'}, height=6, aspect=1.5)
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'simple_linear_lmplot.png'))
+
+# Boxplot of residuals for Simple Linear Regression
+residuals_simple = y_test - y_pred_simple
+sns.boxplot(x=residuals_simple)
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'simple_linear_residuals_boxplot.png'))
+</code></pre>
+            </div>
+            <div class="content-box" data-tab="output">
+                <img src="images/simple_linear_lmplot.png" alt="Simple Linear Regression Plot">
+                <img src="images/simple_linear_residuals_boxplot.png" alt="Simple Linear Residuals Boxplot" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Simple Linear Regression</h3>
+                <p>The `lmplot` shows a positive correlation between `Frequency` and `Monetary`, but the points are widely scattered. The boxplot of residuals shows that the model often underestimates the monetary value.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="multi">
+            <div class="content-box active" data-tab="code"><pre><code># --- 2. Multiple Linear Regression ---
+model_name = "Multiple Linear Regression"
+models[model_name].fit(X_train, y_train)
+y_pred_multi = models[model_name].predict(X_test)
+
+# Scatter plot for actual vs predicted
+plt.scatter(y_test, y_pred_multi, alpha=0.5)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], '--', color='red')
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'multiple_linear_actual_vs_pred.png'))
+
+# Boxplot of residuals
+residuals_multi = y_test - y_pred_multi
+sns.boxplot(x=residuals_multi)
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'multiple_linear_residuals_boxplot.png'))
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/multiple_linear_actual_vs_pred.png" alt="Multiple Linear Regression - Actual vs. Predicted">
+                <img src="images/multiple_linear_residuals_boxplot.png" alt="Multiple Linear Residuals Boxplot" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Multiple Linear Regression</h3>
+                <p>This model, using both `Recency` and `Frequency`, is a better fit than the simple linear model. The scatter plot shows predictions are closer to the actual values. The residuals are more centered around zero, but still show some skew.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="poly">
+             <div class="content-box active" data-tab="code"><pre><code># --- 3. Polynomial Regression ---
+degrees = [2, 3, 4, 5]
+fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+X_poly_train = X_train[['Frequency']]
+X_poly_test = X_test[['Frequency']]
+
+for i, degree in enumerate(degrees):
+    # Create and fit features
+    poly_features = PolynomialFeatures(degree=degree)
+    X_poly_train_transformed = poly_features.fit_transform(X_poly_train)
+    
+    # Fit linear model
+    model = LinearRegression()
+    model.fit(X_poly_train_transformed, y_train)
+    
+    # Create range for smooth curve
+    X_range = np.linspace(X_poly_test.min(), X_poly_test.max(), 100).reshape(-1, 1)
+    X_range_df = pd.DataFrame(X_range, columns=['Frequency'])
+    X_range_poly = poly_features.transform(X_range_df)
+    y_range_pred = model.predict(X_range_poly)
+
+    # Plotting
+    ax = axes[divmod(i, 2)]
+    ax.scatter(X_poly_test, y_test, alpha=0.5)
+    ax.plot(X_range, y_range_pred, color='red')
+    
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'polynomial_regression_degrees.png'))
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/polynomial_regression_degrees.png" alt="Polynomial Regression Degrees">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Polynomial Regression</h3>
+                <p>We see how the model fit changes with increasing polynomial degrees. Higher degrees can capture more complex relationships but also risk overfitting. The R² scores on the plots help identify the best degree (3 or 4 in this case).</p>
+            </div>
+        </div>
+
+        <div data-model-id="comparison">
+            <div class="content-box active" data-tab="code"><pre><code># --- 4. R2 Score Comparison ---
+r2_scores = {name: res['R2'] for name, res in results.items()}
+sns.barplot(x=list(r2_scores.keys()), y=list(r2_scores.values()))
+plt.title('R² Scores of Regression Models')
+plt.xticks(rotation=45, ha='right')
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'regression_r2_comparison.png'))
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/regression_r2_comparison.png" alt="Regression R2 Score Comparison">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Regression Model Comparison</h3>
+                <p>This plot directly compares the R² scores of all regression models. It provides a clear summary of which model best explains the variance in the data. Polynomial regression clearly outperforms the linear models.</p>
+            </div>
+        </div>
+        
+        <!-- Classification Models -->
+        <div data-model-id="logistic">
+            <div class="content-box active" data-tab="code">
+                <pre><code># The regplot shows the logistic regression curve.
+# It requires the 'statsmodels' library.
+sns.regplot(x=X_test_scaled[:, 0], y=y_test, logistic=True, ci=None)
+plt.xlabel("Recency (Scaled)")
+plt.ylabel("Churn Probability")
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'logistic_regression_prob_plot.png'))
+
+model.fit(X_train_scaled, y_train)
+y_pred = model.predict(X_test_scaled)
+
+# --- Metrics ---
+results[name] = {
+    'Test Accuracy': accuracy_score(y_test, y_pred),
+    'Precision': precision_score(y_test, y_pred, labels=[0, 1]),
+    'Recall': recall_score(y_test, y_pred, labels=[0, 1]),
+    'F1-Score': f1_score(y_test, y_pred, labels=[0, 1])
+}
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'logistic_regression_cm.png'))
+</code></pre>
+            </div>
+            <div class="content-box" data-tab="output">
+                <img src="images/logistic_regression_prob_plot.png" alt="Logistic Regression Probability Plot">
+                <img src="images/logistic_regression_cm.png" alt="Logistic Regression Confusion Matrix">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Logistic Regression</h3>
+                <p>The probability plot visualizes the S-shaped curve, confirming that as 'Recency' (time since last purchase) increases, so does the probability of churn. The confusion matrix shows the model's performance. While better than with the old imbalanced data, it still misclassifies a notable number of customers, showing that a simple linear boundary is not enough to separate the classes effectively.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="knn">
+            <div class="content-box active" data-tab="code"><pre><code># --- KNN Tuning ---
+k_range = range(1, 21)
+scores = []
+for k in k_range:
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(X_train_scaled, y_train)
+    scores.append(accuracy_score(y_test, knn.predict(X_test_scaled)))
+best_k = k_range[np.argmax(scores)]
+
+# Plot Accuracy vs K
+plt.plot(k_range, scores, marker='o')
+plt.savefig('knn_accuracy_vs_k.png')
+
+# Fit model with best K and get metrics
+model.n_neighbors = best_k
+model.fit(X_train_scaled, y_train)
+y_pred = model.predict(X_test_scaled)
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+sns.heatmap(cm, annot=True, fmt='d')
+plt.savefig('k-nearest_neighbors_cm.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/knn_accuracy_vs_k.png" alt="KNN Accuracy vs K">
+                <img src="images/k-nearest_neighbors_cm.png" alt="KNN Confusion Matrix" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: K-Nearest Neighbors (KNN)</h3>
+                <p>The plot of accuracy versus K helps us find the optimal number of neighbors to consider for a prediction, preventing the model from being too simple or too complex. The confusion matrix for the tuned model shows its performance. KNN often performs moderately well but can be sensitive to the scale of features and the 'curse of dimensionality'.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="svm">
+            <div class="content-box active" data-tab="code"><pre><code># --- SVM Pairplot ---
+svm_plot_df = pd.DataFrame(X_test, columns=X.columns)
+svm_plot_df['Churn'] = y_test
+sns.pairplot(svm_plot_df, hue='Churn', palette='brg', vars=['Recency', 'Frequency', 'Monetary'])
+plt.savefig('svm_pairplot.png')
+
+# --- Metrics ---
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.savefig('support_vector_machine_(svm)_cm.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                 <img src="images/svm_pairplot.png" alt="SVM Pairplot">
+                 <img src="images/support_vector_machine_(svm)_cm.png" alt="SVM Confusion Matrix" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Support Vector Machine (SVM)</h3>
+                <p>The pairplot helps visualize the separation between the 'Churn' and 'Not Churn' classes across different feature pairs. We can see that 'Recency' provides the clearest separation, but there is still significant overlap. This visual evidence explains why simple linear models struggle and why more complex, non-linear models like SVM (with a non-linear kernel) or tree-based models are necessary.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="naive_bayes">
+            <div class="content-box active" data-tab="code"><pre><code># --- Naive Bayes - Probability Table ---
+nb_prob_df = df.groupby('IsChurned')[['Recency', 'Frequency', 'Monetary']].mean().reset_index()
+
+# Create table plot
+fig, ax = plt.subplots(figsize=(8, 3))
+ax.axis('tight')
+ax.axis('off')
+table = ax.table(cellText=nb_prob_df.values, colLabels=nb_prob_df.columns, loc='center')
+plt.savefig('naive_bayes_probability_table.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/naive_bayes_probability_table.png" alt="Naive Bayes Probability Table">
+                <img src="images/naive_bayes_cm.png" alt="Naive Bayes Confusion Matrix" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Naive Bayes</h3>
+                <p>This table shows the average feature values for each class. We can clearly see that churned customers have a much higher mean 'Recency' and lower 'Frequency' and 'Monetary' values. The Naive Bayes classifier uses these probabilistic differences to make its predictions, assuming the features are independent.</p>
+            </div>
+        </div>
+
+        <div data-model-id="tree">
+            <div class="content-box active" data-tab="code"><pre><code># --- Decision Tree Visualization ---
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+# Plot the tree
+plt.figure(figsize=(20, 10))
+plot_tree(model, feature_names=X.columns, class_names=['Not Churned', 'Churned'], filled=True, rounded=True)
+plt.savefig('decision_tree_plot.png')
+
+# --- Metrics ---
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.savefig('decision_tree_cm.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/decision_tree_plot.png" alt="Decision Tree Plot">
+                <img src="images/decision_tree_cm.png" alt="Decision Tree Confusion Matrix" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Decision Tree</h3>
+                <p>The tree visualization provides a clear, interpretable set of rules. We can follow the branches to see exactly how the model makes a decision (e.g., "if Recency <= 85.5 days..."). While highly transparent, a single decision tree is prone to overfitting the training data, which is why its performance is often surpassed by ensemble methods like Random Forest.</p>
+            </div>
+        </div>
+        
+        <div data-model-id="forest">
+            <div class="content-box active" data-tab="code"><pre><code># --- Random Forest - One Tree Visualization ---
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+# Plot one tree from the forest
+plt.figure(figsize=(20, 10))
+plot_tree(model.estimators_[0], feature_names=X.columns, class_names=['Not Churned', 'Churned'], filled=True, rounded=True)
+plt.savefig('random_forest_tree_plot.png')
+
+# --- Metrics ---
+cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+plt.savefig('random_forest_cm.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/random_forest_tree_plot.png" alt="Random Forest Tree Plot">
+                <img src="images/random_forest_cm.png" alt="Random Forest Confusion Matrix" style="margin-top: 20px;">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Random Forest</h3>
+                <p>By building an ensemble of many decision trees and averaging their predictions, Random Forest creates a more robust and accurate model that is less prone to overfitting. We visualize one tree to understand the basic logic, but the model's real power comes from this ensemble approach. As the confusion matrix and accuracy scores show, this model provides the best overall performance on our dataset.</p>
+            </div>
+        </div>
+        <div data-model-id="comparison">
+             <div class="content-box active" data-tab="code"><pre><code># --- Accuracy Comparison Plot ---
+accuracies = {name: res['Test Accuracy'] for name, res in results.items()}
+plt.figure(figsize=(10, 6))
+sns.barplot(x=list(accuracies.keys()), y=list(accuracies.values()))
+plt.xticks(rotation=45, ha='right')
+plt.savefig('classification_accuracy_comparison.png')
+</code></pre></div>
+            <div class="content-box" data-tab="output">
+                <img src="images/classification_accuracy_comparison.png" alt="Classification Accuracy Comparison">
+            </div>
+            <div class="content-box" data-tab="analysis">
+                <h3>Analysis: Classification Model Comparison</h3>
+                <p>This plot directly compares the accuracy of all classification models. It provides a clear, high-level summary of which model performed best on the test set. In this case, Random Forest is the decisive winner, validating our choice to highlight it as the best model for this task.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

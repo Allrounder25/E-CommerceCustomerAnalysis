@@ -1,0 +1,19 @@
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 1458 entries, 0 to 1457
+Data columns (total 12 columns):
+ #   Column         Non-Null Count  Dtype  
+---  ------         --------------  -----  
+ 0   InvoiceNo      1458 non-null   object 
+ 1   StockCode      1458 non-null   object 
+ 2   Description    1458 non-null   object 
+ 3   Quantity       1458 non-null   float64
+ 4   InvoiceDate    1458 non-null   object 
+ 5   UnitPrice      1458 non-null   float64
+ 6   CustomerID     1458 non-null   float64
+ 7   Country        1458 non-null   object 
+ 8   PromoCode      1417 non-null   object 
+ 9   PaymentMethod  1458 non-null   object 
+ 10  ReviewScore    1450 non-null   float64
+ 11  ItemCategory   1458 non-null   object 
+dtypes: float64(4), object(8)
+memory usage: 136.8+ KB
