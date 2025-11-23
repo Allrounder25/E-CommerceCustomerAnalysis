@@ -1,195 +1,45 @@
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- Global Selections ---
-    const nextBtn = document.getElementById('next-btn');
+    // --- DOM ELEMENT SELECTION ---
+    const steps = document.querySelectorAll('.step');
+    const sections = document.querySelectorAll('.page-section');
     const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
     const themeToggle = document.getElementById('theme-toggle');
-    
-    const allPageSections = document.querySelectorAll('.page-section');
-    const allSteps = document.querySelectorAll('.stepper .step');
-    const allTabButtons = document.querySelectorAll('.tab-btn');
-    const modelTemplates = document.getElementById('model-templates');
-    
-    // Model-specific content areas
-    const regressionArea = document.getElementById('regression-content-area');
-    const classificationArea = document.getElementById('classification-content-area');
-    const unsupervisedArea = document.getElementById('unsupervised-content-area');
-
     let currentStep = 0;
-    const TOTAL_STEPS = allPageSections.length;
 
-    // --- Utility Functions ---
-
-    /**
-     * Updates the main page view to show the correct step.
-     */
-    function updateUI() {
-        // 1. Update Page Sections
-        allPageSections.forEach((section, index) => {
-            section.style.display = (index === currentStep) ? 'block' : 'none';
-        });
-
-        // 2. Update Stepper
-        allSteps.forEach((step, index) => {
-            if (index < currentStep) {
-                step.classList.add('active'); // Mark past steps as active
-            } else if (index === currentStep) {
-                step.classList.add('active'); // Mark current step
+    // --- UI NAVIGATION LOGIC ---
+    const updateUI = () => {
+        steps.forEach((step, index) => {
+            if (index === currentStep) {
+                step.classList.add('active');
             } else {
-                step.classList.remove('active'); // Unmark future steps
-            }
-        });
-        
-        // 3. Update Navigation Buttons
-        prevBtn.style.display = (currentStep === 0) ? 'none' : 'inline-block';
-        nextBtn.style.display = (currentStep === TOTAL_STEPS - 1) ? 'none' : 'inline-block';
-
-        // 4. On first load of a step, click the first model card
-        if (currentStep === 2 && !regressionArea.innerHTML) { // Regression
-            document.querySelector('#regression-scroller .model-card').click();
-        }
-        if (currentStep === 3 && !classificationArea.innerHTML) { // Classification
-            document.querySelector('#classification-scroller .model-card').click();
-        }
-        if (currentStep === 4 && !unsupervisedArea.innerHTML) { // Unsupervised
-            document.querySelector('#unsupervised-scroller .model-card').click();
-        }
-
-        // 5. Load any dynamic content for the current step
-        loadDynamicContent(allPageSections[currentStep]);
-    }
-
-    /**
-     * Loads dynamic content (HTML tables, text) from the /images/ folder.
-     */
-    function loadDynamicContent(currentSection) {
-        const tables = currentSection.querySelectorAll('.table-container[data-src]');
-        tables.forEach(table => {
-            const url = table.getAttribute('data-src');
-            if (table.getAttribute('data-loaded') !== 'true') {
-                fetch(url)
-                    .then(response => response.text())
-                    .then(html => {
-                        table.innerHTML = html;
-                        table.setAttribute('data-loaded', 'true');
-                    })
-                    .catch(err => {
-                        table.innerHTML = `<p style="color: red;">Error loading ${url}</p>`;
-                        console.error('Failed to load content:', err);
-                    });
+                step.classList.remove('active');
             }
         });
 
-        const texts = currentSection.querySelectorAll('.table-container[data-src-text]');
-        texts.forEach(textEl => {
-             const url = textEl.getAttribute('data-src-text');
-            if (textEl.getAttribute('data-loaded') !== 'true') {
-                fetch(url)
-                    .then(response => response.text())
-                    .then(text => {
-                        textEl.textContent = text;
-                        textEl.setAttribute('data-loaded', 'true');
-                    })
-                    .catch(err => {
-                        textEl.textContent = `Error loading ${url}`;
-                        console.error('Failed to load content:', err);
-                    });
+        sections.forEach((section, index) => {
+            section.style.display = index === currentStep ? 'block' : 'none';
+            // Re-trigger animation by removing and adding the class
+            if (index === currentStep) {
+                section.classList.remove('active-section');
+                void section.offsetWidth; // Trigger reflow
+                section.classList.add('active-section');
+            } else {
+                section.classList.remove('active-section');
             }
         });
-    }
 
-    /**
-     * Handles clicks on the main "Code", "Output", "Analysis" tabs.
-     */
-    function handleTabClick(event) {
-        const clickedTab = event.currentTarget;
-        const tabName = clickedTab.dataset.tab;
-        const stepId = clickedTab.closest('.option-bar').dataset.stepId;
-        const pageSection = document.getElementById(`step-${stepId}`);
-
-        // 1. Update Tab Buttons
-        clickedTab.parentElement.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        clickedTab.classList.add('active');
-
-        // 2. Update Content Boxes
-        // This is tricky because model tabs are nested.
-        // We select the *closest* content-area to the tab bar.
-        const contentArea = clickedTab.closest('.page-section, .model-content-container').querySelector('.content-area');
-        
-        contentArea.querySelectorAll('.content-box').forEach(box => {
-            box.style.display = 'none';
-            box.classList.remove('active');
-        });
-        
-        const activeContent = contentArea.querySelector(`[data-tab="${tabName}"]`);
-        if (activeContent) {
-            activeContent.style.display = 'block';
-            activeContent.classList.add('active');
-        }
-    }
-
-    /**
-     * Handles clicks on the horizontal model scroller cards.
-     */
-    function handleModelCardClick(event, contentTargetArea) {
-        const clickedCard = event.currentTarget;
-        const modelId = clickedCard.dataset.model;
-        
-        // 1. Update Card 'active' state
-        clickedCard.parentElement.querySelectorAll('.model-card').forEach(card => card.classList.remove('active'));
-        clickedCard.classList.add('active');
-        
-        // 2. Get the template content
-        const template = modelTemplates.querySelector(`[data-model-id="${modelId}"]`);
-        if (template) {
-            contentTargetArea.innerHTML = template.innerHTML;
-            
-            // 3. Re-bind tab-click events for the new tabs
-            contentTargetArea.querySelectorAll('.tab-btn').forEach(btn => {
-                // This is a simple re-implementation of handleTabClick for nested tabs
-                btn.addEventListener('click', (e) => {
-                    const tabName = e.currentTarget.dataset.tab;
-                    const parent = e.currentTarget.closest('.option-bar');
-                    
-                    parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    e.currentTarget.classList.add('active');
-                    
-                    const contentArea = contentTargetArea; // Use the specific model area
-                    contentArea.querySelectorAll('.content-box').forEach(box => {
-                        box.style.display = 'none';
-                        box.classList.remove('active');
-                    });
-                    
-                    const activeContent = contentArea.querySelector(`[data-tab="${tabName}"]`);
-                    if (activeContent) {
-                        activeContent.style.display = 'block';
-                        activeContent.classList.add('active');
-                    }
-                });
-            });
-
-            // 4. Click the first tab by default
-            if(contentTargetArea.querySelector('.tab-btn')) {
-                contentTargetArea.querySelector('.tab-btn').click();
-            }
-
-            // 5. Load dynamic content for this model
-            loadDynamicContent(contentTargetArea);
-
+        prevBtn.style.display = currentStep === 0 ? 'none' : 'inline-block';
+        nextBtn.textContent = currentStep === steps.length - 1 ? 'Finish' : 'Next Step';
+        if (currentStep === steps.length - 1) {
+            nextBtn.onclick = () => alert('Project demonstration complete!');
         } else {
-            contentTargetArea.innerHTML = `<p>Content for ${modelId} not found.</p>`;
+            nextBtn.onclick = () => {
+                currentStep++;
+                updateUI();
+            };
         }
-    }
-    
-    // --- Event Listeners ---
-
-    // 1. Navigation
-    nextBtn.addEventListener('click', () => {
-        if (currentStep < TOTAL_STEPS - 1) {
-            currentStep++;
-            updateUI();
-        }
-    });
+    };
 
     prevBtn.addEventListener('click', () => {
         if (currentStep > 0) {
@@ -198,49 +48,111 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    allSteps.forEach(step => {
+    nextBtn.addEventListener('click', () => {
+        if (currentStep < steps.length - 1) {
+            currentStep++;
+            updateUI();
+        }
+    });
+
+    steps.forEach(step => {
         step.addEventListener('click', () => {
             currentStep = parseInt(step.dataset.step);
             updateUI();
         });
     });
 
-    // 2. Theme Toggle
+    // --- DYNAMIC CONTENT & TAB INITIALIZATION ---
+    const initializeScroller = (scrollerId, contentAreaId, templatesContainer) => {
+        const scroller = document.getElementById(scrollerId);
+        const contentArea = document.getElementById(contentAreaId);
+
+        scroller.addEventListener('click', (e) => {
+            if (e.target.classList.contains('model-card')) {
+                // Update active card
+                scroller.querySelector('.active')?.classList.remove('active');
+                e.target.classList.add('active');
+
+                const modelId = e.target.dataset.model;
+                const template = templatesContainer.querySelector(`[data-model-id="${modelId}"]`);
+                if (template) {
+                    contentArea.innerHTML = template.innerHTML;
+                    // Re-initialize tab buttons for the new content
+                    initializeTabButtons(contentArea);
+                }
+            }
+        });
+        // Load the first model's content by default
+        scroller.querySelector('.model-card').click();
+    };
+
+    const initializeTabButtons = (parent) => {
+        const tabBtns = parent.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const optionBar = btn.closest('.option-bar');
+                const contentArea = optionBar.nextElementSibling;
+
+                if (!contentArea || !contentArea.classList.contains('content-area')) {
+                    console.error('Could not find a .content-area sibling to the .option-bar');
+                    return;
+                }
+
+                const activeTab = btn.dataset.tab;
+
+                optionBar.querySelector('.tab-btn.active')?.classList.remove('active');
+                btn.classList.add('active');
+
+                contentArea.querySelectorAll('.content-box').forEach(box => {
+                    box.classList.toggle('active', box.dataset.tab === activeTab);
+                });
+            });
+        });
+    };
+
+    const templatesContainer = document.getElementById('model-templates');
+    document.querySelectorAll('.page-section').forEach(section => {
+        initializeTabButtons(section);
+    });
+
+    const loadStaticContent = () => {
+        document.querySelectorAll('[data-src]').forEach(el => {
+            fetch(el.dataset.src)
+                .then(response => response.text())
+                .then(data => { el.innerHTML = data; })
+                .catch(error => { el.innerHTML = `Error loading content.`; });
+        });
+        document.querySelectorAll('[data-src-text]').forEach(el => {
+            fetch(el.dataset.srcText)
+                .then(response => response.text())
+                .then(data => { el.innerHTML = `<pre><code>${data}</code></pre>`; })
+                .catch(error => { el.innerHTML = `Error loading content.`; });
+        });
+        document.querySelectorAll('[data-src-json]').forEach(el => {
+            fetch(el.dataset.srcJson)
+                .then(response => response.json())
+                .then(data => {
+                    let tableHtml = '<table><thead><tr><th>Model</th><th>R2/Accuracy</th><th>MSE/F1-Score</th></tr></thead><tbody>';
+                    for (const model in data) {
+                        const metrics = Object.values(data[model]);
+                        tableHtml += `<tr><td>${model}</td><td>${metrics[0].toFixed(4)}</td><td>${metrics[3].toFixed(4)}</td></tr>`;
+                    }
+                    tableHtml += '</tbody></table>';
+                    el.innerHTML = tableHtml;
+                })
+                .catch(error => { el.innerHTML = `Error loading JSON.`; });
+        });
+    };
+
+    // --- Theme Toggler ---
     themeToggle.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
-        const isDark = document.body.classList.contains('dark-mode');
-        themeToggle.textContent = isDark ? '🌙' : '☀️';
-        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        themeToggle.textContent = document.body.classList.contains('dark-mode') ? '🌙' : '☀️';
     });
 
-    // 3. Load Theme from LocalStorage
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-mode');
-        themeToggle.textContent = '🌙';
-    } else {
-        document.body.classList.remove('dark-mode');
-        themeToggle.textContent = '☀️';
-    }
-
-    // 4. Main Tab Buttons (Code, Output, Analysis)
-    allTabButtons.forEach(btn => {
-        btn.addEventListener('click', handleTabClick);
-    });
-    
-    // 5. Model Scroller Card Clicks
-    document.querySelectorAll('#regression-scroller .model-card').forEach(card => {
-        card.addEventListener('click', (e) => handleModelCardClick(e, regressionArea));
-    });
-    
-    document.querySelectorAll('#classification-scroller .model-card').forEach(card => {
-        card.addEventListener('click', (e) => handleModelCardClick(e, classificationArea));
-    });
-    
-    document.querySelectorAll('#unsupervised-scroller .model-card').forEach(card => {
-        card.addEventListener('click', (e) => handleModelCardClick(e, unsupervisedArea));
-    });
-
-    // --- Initial Load ---
+    // --- INITIALIZATION ---
+    initializeScroller('regression-scroller', 'regression-content-area', templatesContainer);
+    initializeScroller('classification-scroller', 'classification-content-area', templatesContainer);
     updateUI();
+    loadStaticContent();
 });

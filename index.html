@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Analytics Project</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,17 +15,18 @@
     </button>
 
     <div class="container">
-        <header class="stepper">
-            <div class="step active" data-step="0">1. Data Load</div>
-            <div class="step-line"></div>
-            <div class="step" data-step="1">2. Preprocessing</div>
-            <div class="step-line"></div>
-            <div class="step" data-step="2">3. Regression</div>
-            <div class="step-line"></div>
-            <div class="step" data-step="3">4. Classification</div>
-            <div class="step-line"></div>
-            <div class="step" data-step="4">5. Conclusion</div>
+        <header class="project-header">
+            <h1>CommercePulse: Customer Analytics</h1>
         </header>
+        <div class="stepper-container">
+            <header class="stepper">
+                <div class="step active" data-step="0">1. Data Load</div>
+                <div class="step" data-step="1">2. Preprocessing</div>
+                <div class="step" data-step="2">3. Regression</div>
+                <div class="step" data-step="3">4. Classification</div>
+                <div class="step" data-step="4">5. Conclusion</div>
+            </header>
+        </div>
 
         <main class="main-content">
 
@@ -110,7 +112,7 @@ rfm_df = df_cleaned.groupby('CustomerID').agg(
                     </div>
                     <div class="content-box" id="analysis-content-1" data-tab="analysis">
                         <h3>Analysis</h3>
-                        <p>Data is cleaned by removing null `CustomerID`s and imputing `ReviewScore`. The core of feature engineering is creating the RFM (Recency, Frequency, Monetary) features. A 'Churn' feature is then engineered by flagging the top 25% of customers with the highest 'Recency' as "Churned". Thanks to the date correction, this now creates a balanced 75/25 split between non-churned and churned customers, which is essential for training our classification models.</p>
+                        <p>Data is cleaned, and RFM (Recency, Frequency, Monetary) features are engineered. A 'Churn' feature is created by flagging customers with the highest 'Recency' as "Churned". Crucially, to avoid data leakage, the 'Recency' feature itself is **not** used for training the classification models. The goal is to see if we can predict churn based only on a customer's purchasing behavior (`Frequency` and `Monetary`).</p>
                     </div>
                 </div>
             </section>
@@ -169,15 +171,15 @@ rfm_df = df_cleaned.groupby('CustomerID').agg(
                 <p class="task-description">Here we compare our models to select the "best" one for each task based on their performance metrics.</p>
                 
                 <h3>Regression Task: Final Comparison</h3>
-                <div class="table-container" data-src="metrics/regression_metrics.json">Loading Regression Results...</div>
+                <div class="table-container" data-src-json="metrics/regression_metrics.json">Loading Regression Results...</div>
                 
                 <h3 style="margin-top: 30px;">Classification Task: Final Comparison</h3>
-                <div class="table-container" data-src="metrics/classification_metrics.json">Loading Classification Results...</div>
+                <div class="table-container" data-src-json="metrics/classification_metrics.json">Loading Classification Results...</div>
 
                 <h3 style="margin-top: 30px;">Final Analysis & Business Insights</h3>
                 <ul>
                     <li><strong>Best Regression Model:</strong> The comparison shows that **Polynomial Regression** provides the highest R² score. This indicates it best captures the non-linear relationship between customer behavior (like frequency) and their total spending.</li>
-                    <li><strong>Best Classification Model:</strong> The accuracy comparison chart and F1-scores clearly show that **Random Forest** is the winner. It handles the complex interactions between RFM features far better than other models, leading to the most reliable predictions for customer churn.</li>
+                    <li><strong>Best Classification Model:</strong> After fixing the data leakage, the results are more realistic. The accuracy comparison chart shows that **Random Forest** is the winner. It performs best at the difficult task of predicting churn using only customer spending patterns (`Frequency` and `Monetary`), making it the most reliable model for identifying at-risk customers based on their behavior.</li>
                 </ul>
             </section>
         </main>
@@ -307,37 +309,29 @@ plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'regression_r2_comparison.png'))
         <!-- Classification Models -->
         <div data-model-id="logistic">
             <div class="content-box active" data-tab="code">
-                <pre><code># The regplot shows the logistic regression curve.
-# It requires the 'statsmodels' library.
-sns.regplot(x=X_test_scaled[:, 0], y=y_test, logistic=True, ci=None)
-plt.xlabel("Recency (Scaled)")
-plt.ylabel("Churn Probability")
-plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'logistic_regression_prob_plot.png'))
-
+                <pre><code># Define features (X) and target (y)
+# We use only 'Frequency' and 'Monetary' to avoid data leakage from 'Recency'
+X = df[['Frequency', 'Monetary']]
+y = df['IsChurned']
+# Split, scale, and fit
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 model.fit(X_train_scaled, y_train)
 y_pred = model.predict(X_test_scaled)
-
-# --- Metrics ---
-results[name] = {
-    'Test Accuracy': accuracy_score(y_test, y_pred),
-    'Precision': precision_score(y_test, y_pred, labels=[0, 1]),
-    'Recall': recall_score(y_test, y_pred, labels=[0, 1]),
-    'F1-Score': f1_score(y_test, y_pred, labels=[0, 1])
-}
-
-# Confusion Matrix
+# Generate confusion matrix
 cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.savefig(os.path.join(WEB_ASSETS_FOLDER, 'logistic_regression_cm.png'))
 </code></pre>
             </div>
             <div class="content-box" data-tab="output">
-                <img src="images/logistic_regression_prob_plot.png" alt="Logistic Regression Probability Plot">
                 <img src="images/logistic_regression_cm.png" alt="Logistic Regression Confusion Matrix">
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Logistic Regression</h3>
-                <p>The probability plot visualizes the S-shaped curve, confirming that as 'Recency' (time since last purchase) increases, so does the probability of churn. The confusion matrix shows the model's performance. While better than with the old imbalanced data, it still misclassifies a notable number of customers, showing that a simple linear boundary is not enough to separate the classes effectively.</p>
+                <p>The confusion matrix shows the model's performance. As a linear model, Logistic Regression struggles to find a clear line to separate churned vs. non-churned customers based on only `Frequency` and `Monetary`. It correctly identifies most non-churned customers but performs poorly at identifying those who have churned, indicating a more complex model is needed.</p>
             </div>
         </div>
         
@@ -354,14 +348,10 @@ best_k = k_range[np.argmax(scores)]
 # Plot Accuracy vs K
 plt.plot(k_range, scores, marker='o')
 plt.savefig('knn_accuracy_vs_k.png')
-
 # Fit model with best K and get metrics
 model.n_neighbors = best_k
 model.fit(X_train_scaled, y_train)
 y_pred = model.predict(X_test_scaled)
-cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
-sns.heatmap(cm, annot=True, fmt='d')
-plt.savefig('k-nearest_neighbors_cm.png')
 </code></pre></div>
             <div class="content-box" data-tab="output">
                 <img src="images/knn_accuracy_vs_k.png" alt="KNN Accuracy vs K">
@@ -379,11 +369,6 @@ svm_plot_df = pd.DataFrame(X_test, columns=X.columns)
 svm_plot_df['Churn'] = y_test
 sns.pairplot(svm_plot_df, hue='Churn', palette='brg', vars=['Recency', 'Frequency', 'Monetary'])
 plt.savefig('svm_pairplot.png')
-
-# --- Metrics ---
-cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.savefig('support_vector_machine_(svm)_cm.png')
 </code></pre></div>
             <div class="content-box" data-tab="output">
                  <img src="images/svm_pairplot.png" alt="SVM Pairplot">
@@ -391,15 +376,14 @@ plt.savefig('support_vector_machine_(svm)_cm.png')
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Support Vector Machine (SVM)</h3>
-                <p>The pairplot helps visualize the separation between the 'Churn' and 'Not Churn' classes across different feature pairs. We can see that 'Recency' provides the clearest separation, but there is still significant overlap. This visual evidence explains why simple linear models struggle and why more complex, non-linear models like SVM (with a non-linear kernel) or tree-based models are necessary.</p>
+                <p>The pairplot visualizes the relationship between `Frequency` and `Monetary` for both classes. The significant overlap between the green (Not Churned) and red (Churned) points visually confirms why this is a difficult prediction task. It shows there is no simple boundary, which explains why more complex, non-linear models are required to find patterns.</p>
             </div>
         </div>
         
         <div data-model-id="naive_bayes">
             <div class="content-box active" data-tab="code"><pre><code># --- Naive Bayes - Probability Table ---
 nb_prob_df = df.groupby('IsChurned')[['Recency', 'Frequency', 'Monetary']].mean().reset_index()
-
-# Create table plot
+# Create table as a plot
 fig, ax = plt.subplots(figsize=(8, 3))
 ax.axis('tight')
 ax.axis('off')
@@ -412,7 +396,7 @@ plt.savefig('naive_bayes_probability_table.png')
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Naive Bayes</h3>
-                <p>This table shows the average feature values for each class. We can clearly see that churned customers have a much higher mean 'Recency' and lower 'Frequency' and 'Monetary' values. The Naive Bayes classifier uses these probabilistic differences to make its predictions, assuming the features are independent.</p>
+                <p>This table shows the average `Frequency` and `Monetary` values for each class. We can see that churned customers tend to have slightly lower mean values for both. The Naive Bayes classifier uses these probabilistic differences to make its predictions. Its performance is modest, likely because the assumption that the features are independent doesn't fully hold true.</p>
             </div>
         </div>
 
@@ -420,16 +404,10 @@ plt.savefig('naive_bayes_probability_table.png')
             <div class="content-box active" data-tab="code"><pre><code># --- Decision Tree Visualization ---
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
-
 # Plot the tree
 plt.figure(figsize=(20, 10))
 plot_tree(model, feature_names=X.columns, class_names=['Not Churned', 'Churned'], filled=True, rounded=True)
 plt.savefig('decision_tree_plot.png')
-
-# --- Metrics ---
-cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.savefig('decision_tree_cm.png')
 </code></pre></div>
             <div class="content-box" data-tab="output">
                 <img src="images/decision_tree_plot.png" alt="Decision Tree Plot">
@@ -437,7 +415,7 @@ plt.savefig('decision_tree_cm.png')
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Decision Tree</h3>
-                <p>The tree visualization provides a clear, interpretable set of rules. We can follow the branches to see exactly how the model makes a decision (e.g., "if Recency <= 85.5 days..."). While highly transparent, a single decision tree is prone to overfitting the training data, which is why its performance is often surpassed by ensemble methods like Random Forest.</p>
+                <p>The tree visualization provides a clear, interpretable set of rules based on `Monetary` and `Frequency` values. We can follow the branches to see exactly how the model makes a decision. While highly transparent, a single decision tree can easily overfit the training data, which is why its performance, while better than linear models, is often surpassed by Random Forest.</p>
             </div>
         </div>
         
@@ -445,16 +423,10 @@ plt.savefig('decision_tree_cm.png')
             <div class="content-box active" data-tab="code"><pre><code># --- Random Forest - One Tree Visualization ---
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
-
 # Plot one tree from the forest
 plt.figure(figsize=(20, 10))
 plot_tree(model.estimators_[0], feature_names=X.columns, class_names=['Not Churned', 'Churned'], filled=True, rounded=True)
 plt.savefig('random_forest_tree_plot.png')
-
-# --- Metrics ---
-cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.savefig('random_forest_cm.png')
 </code></pre></div>
             <div class="content-box" data-tab="output">
                 <img src="images/random_forest_tree_plot.png" alt="Random Forest Tree Plot">
@@ -462,7 +434,7 @@ plt.savefig('random_forest_cm.png')
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Random Forest</h3>
-                <p>By building an ensemble of many decision trees and averaging their predictions, Random Forest creates a more robust and accurate model that is less prone to overfitting. We visualize one tree to understand the basic logic, but the model's real power comes from this ensemble approach. As the confusion matrix and accuracy scores show, this model provides the best overall performance on our dataset.</p>
+                <p>By building an ensemble of many decision trees, Random Forest creates a more robust and accurate model that is less prone to overfitting. We visualize one tree to understand the basic logic, but the model's power comes from combining hundreds of them. As the confusion matrix and final accuracy scores show, this model provides the best overall performance for this challenging prediction task.</p>
             </div>
         </div>
         <div data-model-id="comparison">
@@ -470,7 +442,6 @@ plt.savefig('random_forest_cm.png')
 accuracies = {name: res['Test Accuracy'] for name, res in results.items()}
 plt.figure(figsize=(10, 6))
 sns.barplot(x=list(accuracies.keys()), y=list(accuracies.values()))
-plt.xticks(rotation=45, ha='right')
 plt.savefig('classification_accuracy_comparison.png')
 </code></pre></div>
             <div class="content-box" data-tab="output">
@@ -478,7 +449,7 @@ plt.savefig('classification_accuracy_comparison.png')
             </div>
             <div class="content-box" data-tab="analysis">
                 <h3>Analysis: Classification Model Comparison</h3>
-                <p>This plot directly compares the accuracy of all classification models. It provides a clear, high-level summary of which model performed best on the test set. In this case, Random Forest is the decisive winner, validating our choice to highlight it as the best model for this task.</p>
+                <p>This plot directly compares the accuracy of all classification models. It provides a clear, high-level summary of which model performed best on the test set. The scores are now realistic, not an inflated 100%. Random Forest is the decisive winner, validating our choice to highlight it as the best model for this task.</p>
             </div>
         </div>
     </div>
